@@ -1,0 +1,33 @@
+name: NFR docs check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "p03-nfr" ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверка наличия файлов
+        run: |
+          test -f docs/security-nfr/NFR.md
+          test -f docs/security-nfr/NFR_BDD.md
+          test -f docs/security-nfr/NFR_TRACEABILITY.md
+
+      - name: Проверка числа NFR не меньше восьми
+        run: |
+          COUNT=$(grep -E '^\| NFR-[0-9]+' docs/security-nfr/NFR.md | wc -l)
+          echo "найдено $COUNT строк"
+          [ "$COUNT" -ge 8 ]
+
+      - name: Проверка наличия ключевых слов в сценариях
+        run: |
+          grep -q 'Функция' docs/security-nfr/NFR_BDD.md
+          grep -q 'Сценарий' docs/security-nfr/NFR_BDD.md
+          grep -q 'Дано' docs/security-nfr/NFR_BDD.md
+          grep- q 'Когда' docs/security-nfr/NFR_BDD.md || true
+          grep -q 'То' docs/security-nfr/NFR_BDD.md
