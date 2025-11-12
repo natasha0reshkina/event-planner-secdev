@@ -2,7 +2,8 @@ from datetime import date, timedelta
 
 from starlette.testclient import TestClient
 
-from src.app import app
+from app import app
+
 
 
 def test_rejects_past_date():
