@@ -1,5 +1,11 @@
-from fastapi import FastAPI, HTTPException, Request
+from datetime import date
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
+
+from src.security.errors import problem
+from src.security.files import secure_save
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
 
@@ -21,7 +27,6 @@ async def api_error_handler(request: Request, exc: ApiError):
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    # Normalize FastAPI HTTPException into our error envelope
     detail = exc.detail if isinstance(exc.detail, str) else "http_error"
     return JSONResponse(
         status_code=exc.status_code,
@@ -34,24 +39,52 @@ def health():
     return {"status": "ok"}
 
 
-# Example minimal entity (for tests/demo)
-_DB = {"items": []}
+_EVENTS_DB: dict[str, dict] = {}
 
 
-@app.post("/items")
-def create_item(name: str):
-    if not name or len(name) > 100:
-        raise ApiError(
-            code="validation_error", message="name must be 1..100 chars", status=422
-        )
-    item = {"id": len(_DB["items"]) + 1, "name": name}
-    _DB["items"].append(item)
-    return item
+def _validate_event(payload: dict) -> None:
+    title = str(payload.get("title", "")).strip()
+    place = str(payload.get("place", "")).strip()
+    raw_date = payload.get("date")
+
+    if not (1 <= len(title) <= 200):
+        raise ValueError("bad_title_length")
+    if not (1 <= len(place) <= 200):
+        raise ValueError("bad_place_length")
+    note = payload.get("note")
+    if note is not None and len(str(note)) > 2000:
+        raise ValueError("bad_note_length")
+
+    try:
+        d = date.fromisoformat(raw_date)
+    except Exception as err:
+        raise ValueError("bad_date_format") from err
+    if d < date.today():
+        raise ValueError("past_date")
 
 
-@app.get("/items/{item_id}")
-def get_item(item_id: int):
-    for it in _DB["items"]:
-        if it["id"] == item_id:
-            return it
-    raise ApiError(code="not_found", message="item not found", status=404)
+@app.post("/events")
+def create_event(payload: dict):
+    try:
+        _validate_event(payload)
+    except ValueError as e:
+        return problem(422, "Неверные данные", str(e))
+
+    new_id = str(len(_EVENTS_DB) + 1)
+    _EVENTS_DB[new_id] = {
+        "title": payload["title"],
+        "place": payload["place"],
+        "date": payload["date"],
+        "note_len": len(str(payload.get("note") or "")),
+    }
+    return {"id": new_id}
+
+
+@app.post("/events/{event_id}/image")
+async def upload_event_image(event_id: str, file: UploadFile):
+    data = await file.read()
+    try:
+        stored_path = secure_save(Path("storage/images"), data)
+    except ValueError as e:
+        return problem(422, "Неверный файл", str(e))
+    return {"path": stored_path}
