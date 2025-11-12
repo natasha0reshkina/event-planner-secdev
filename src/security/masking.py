@@ -6,5 +6,6 @@ def mask_email(s: str | None) -> str | None:
         return s[:2] + "***"
     return name[:2] + "***@" + dom
 
+
 def safe_note_len(note: str | None) -> int:
     return len(note or "")
