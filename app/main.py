@@ -47,18 +47,21 @@ def _validate_event(payload: dict) -> None:
     place = str(payload.get("place", "")).strip()
     raw_date = payload.get("date")
 
-    if not title:
+    if not (1 <= len(title) <= 200):
         raise ValueError("bad_title_length")
-    if not place:
+    if not (1 <= len(place) <= 200):
         raise ValueError("bad_place_length")
+    note = payload.get("note")
+    if note is not None and len(str(note)) > 2000:
+        raise ValueError("bad_note_length")
 
     try:
         d = date.fromisoformat(raw_date)
     except Exception as err:
         raise ValueError("bad_date_format") from err
-
     if d < date.today():
         raise ValueError("past_date")
+
 
 
 @app.post("/events")
