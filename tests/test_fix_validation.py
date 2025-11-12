@@ -5,7 +5,6 @@ from starlette.testclient import TestClient
 from app import app
 
 
-
 def test_rejects_past_date():
     c = TestClient(app)
     past = (date.today() - timedelta(days=1)).isoformat()
