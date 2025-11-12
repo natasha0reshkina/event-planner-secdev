@@ -13,6 +13,9 @@ app = FastAPI(title="Event Planner MVP")
 
 _DB: dict[str, dict] = {}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @app.post("/events")
 async def create_event(payload: dict):
