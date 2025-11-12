@@ -78,3 +78,4 @@ async def upload_event_image(event_id: str, file: UploadFile):
 @app.exception_handler(Exception)
 async def default_handler(request: Request, exc: Exception) -> JSONResponse:
     return problem(500, "Внутренняя ошибка", "internal_error")
+    
