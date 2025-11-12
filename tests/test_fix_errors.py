@@ -1,6 +1,7 @@
 from starlette.testclient import TestClient
 
-from src.app import app
+from app import app
+
 
 
 def test_problem_contract_on_bad_payload():
