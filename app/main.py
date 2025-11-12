@@ -53,7 +53,7 @@ def _validate_event(payload: dict) -> None:
     try:
         d = date.fromisoformat(raw_date)
     except Exception:
-        raise ValueError("bad_date_format")
+        raise ValueError("bad_date_format") from err
     if d < date.today():
         raise ValueError("past_date")
 
