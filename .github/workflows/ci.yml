@@ -30,8 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
           pip install -r requirements-dev.txt || true
-          # на случай отсутствия файлов — подстрахуемся базовым набором
-          pip install fastapi uvicorn starlette pytest pytest-cov black isort ruff pre-commit
+          pip install fastapi uvicorn starlette python-multipart pytest pytest-cov black isort ruff pre-commit
 
       - name: Prepare runtime dirs and env
         run: |
