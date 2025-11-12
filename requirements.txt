@@ -4,3 +4,5 @@ starlette
 python-multipart
 pytest
 pytest-cov
+httpx
+
