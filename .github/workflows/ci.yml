@@ -1,10 +1,14 @@
 name: CI
+
 on:
   pull_request:
+    branches: [ "main" ]
   push:
-    branches: [main]
+    branches: [ "main", "p06-secure-coding" ]
+
 permissions:
   contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -12,6 +16,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +28,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r requirements.txt || true
+          pip install -r requirements-dev.txt || true
+          # на случай отсутствия файлов — подстрахуемся базовым набором
+          pip install fastapi uvicorn starlette pytest pytest-cov black isort ruff pre-commit
+
+      - name: Prepare runtime dirs and env
+        run: |
+          mkdir -p storage/images
+          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
       - name: Lint & Format
         run: |
@@ -32,7 +45,10 @@ jobs:
           isort --check-only .
 
       - name: Tests
-        run: pytest -q
+        env:
+          PYTHONPATH: ${{ env.PYTHONPATH }}
+        run: |
+          pytest -q --disable-warnings --maxfail=1
 
       - name: Pre-commit (all files)
         run: pre-commit run --all-files
