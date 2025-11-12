@@ -46,14 +46,17 @@ def _validate_event(payload: dict) -> None:
     title = str(payload.get("title", "")).strip()
     place = str(payload.get("place", "")).strip()
     raw_date = payload.get("date")
+
     if not title:
         raise ValueError("bad_title_length")
     if not place:
         raise ValueError("bad_place_length")
+
     try:
         d = date.fromisoformat(raw_date)
-    except Exception:
+    except Exception as err:
         raise ValueError("bad_date_format") from err
+
     if d < date.today():
         raise ValueError("past_date")
 
@@ -64,6 +67,7 @@ def create_event(payload: dict):
         _validate_event(payload)
     except ValueError as e:
         return problem(422, "Неверные данные", str(e))
+
     new_id = str(len(_EVENTS_DB) + 1)
     _EVENTS_DB[new_id] = {
         "title": payload["title"],
