@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from src.security.errors import problem
 from src.security.files import secure_save
+from src.security.masking import log_event_action, safe_note_len
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
 
@@ -71,12 +72,13 @@ def create_event(payload: dict):
         return problem(422, "Неверные данные", str(e))
 
     new_id = str(len(_EVENTS_DB) + 1)
-    _EVENTS_DB[new_id] = {
+        _EVENTS_DB[new_id] = {
         "title": payload["title"],
         "place": payload["place"],
         "date": payload["date"],
-        "note_len": len(str(payload.get("note") or "")),
+        "note_len": safe_note_len(payload.get("note")),
     }
+    log_event_action("create", payload["title"], payload["place"], payload.get("note"))
     return {"id": new_id}
 
 
