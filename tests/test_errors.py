@@ -1,19 +1,11 @@
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
 
-
-def test_not_found_item():
-    r = client.get("/items/999")
-    assert r.status_code == 404
-    body = r.json()
-    assert "error" in body and body["error"]["code"] == "not_found"
-
-
-def test_validation_error():
-    r = client.post("/items", params={"name": ""})
+def test_problem_contract_on_bad_payload():
+    c = TestClient(app)
+    r = c.post("/events", json={"title": "", "place": "x", "date": "1900-01-01"})
     assert r.status_code == 422
     body = r.json()
-    assert body["error"]["code"] == "validation_error"
+    assert {"type", "title", "status", "detail", "correlation_id"} <= set(body.keys())
