@@ -72,7 +72,7 @@ def create_event(payload: dict):
         return problem(422, "Неверные данные", str(e))
 
     new_id = str(len(_EVENTS_DB) + 1)
-        _EVENTS_DB[new_id] = {
+    _EVENTS_DB[new_id] = {
         "title": payload["title"],
         "place": payload["place"],
         "date": payload["date"],
