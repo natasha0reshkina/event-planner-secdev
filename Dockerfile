@@ -3,41 +3,39 @@
 ############################
 # 1) build stage
 ############################
-FROM python:3.12-slim@sha256:a30a69a5be8cc1ac1b9c1e4ab72e16d58a4f6b30ad0a601418eab7d5e9cb13fb AS build
+FROM python:3.12-slim AS build
 
 WORKDIR /app
 
 COPY requirements.txt .
+
 RUN --mount=type=cache,target=/root/.cache \
-    pip install --upgrade pip && \
-    pip wheel --wheel-dir=/wheels -r requirements.txt
+    python -m pip install --upgrade "pip==24.3.1" && \
+    python -m pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
 
 
 ############################
 # 2) runtime stage
 ############################
-FROM python:3.12-slim@sha256:a30a69a5be8cc1ac1b9c1e4ab72e16d58a4f6b30ad0a601418eab7d5e9cb13fb AS runtime
+FROM python:3.12-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# создаём пользователя
 RUN groupadd -r app && useradd -r -g app app
 
-# копируем зависимости
 COPY --from=build /wheels /wheels
-RUN pip install --no-cache-dir /wheels/*
 
-# копируем приложение
+RUN python -m pip install --no-cache-dir /wheels/*
+
 COPY . .
 
-# даём права
 RUN chown -R app:app /app
+
 USER app
 
-# healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:8000/health || exit 1
 
