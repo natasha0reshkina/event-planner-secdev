@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   app:
     build: .
@@ -15,6 +13,8 @@ services:
       retries: 3
     security_opt:
       - no-new-privileges:true
+      - seccomp=./docker/seccomp-event-planner.json
+      - apparmor=docker-default
     cap_drop:
       - ALL
     read_only: true
