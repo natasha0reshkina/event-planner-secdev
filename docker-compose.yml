@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    image: event-planner:latest
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONPATH: /app
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./docker/seccomp-event-planner.json
+      - apparmor=docker-default
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
