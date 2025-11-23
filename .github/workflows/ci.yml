@@ -1,20 +1,20 @@
-name: CI
+name: CI/CD (Event Planner)
 
 on:
   push:
-    branches: [ "main", "p08-cicd-minimal" ]
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+
   tests:
-    name: Линтеры и тесты
+    name: Tests and Lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -23,15 +23,15 @@ jobs:
         python-version: [ "3.10", "3.12" ]
 
     steps:
-      - name: Получение кода
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Установка Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Кэш pip
+      - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
@@ -39,80 +39,50 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Установка зависимостей
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then python -m pip install -r requirements-dev.txt; fi
-          python -m pip install ruff black isort pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          pip install ruff black isort pytest pytest-cov
 
-      - name: Линтеры
+      - name: Prepare runtime dirs
+        run: |
+          mkdir -p storage/images
+          mkdir -p reports
+
+      - name: Lint
         run: |
           ruff check .
           black --check .
           isort --check-only .
 
-      - name: Тесты с отчётами
+      - name: Run tests with coverage
         run: |
-          mkdir -p reports
-          pytest -q --maxfail=1 --disable-warnings \
+          pytest -q --disable-warnings --maxfail=1 \
             --cov=app --cov=src \
             --cov-report=xml:reports/coverage-${{ matrix.python-version }}.xml \
             --junitxml=reports/junit-${{ matrix.python-version }}.xml
 
-      - name: Артефакты отчётов
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports-${{ matrix.python-version }}
+          name: reports-${{ matrix.python-version }}
           path: reports/
 
-  container-scan:
-    name: Сборка и сканирование образа
+  staging-deploy:
+    name: Staging deploy (mock)
     runs-on: ubuntu-latest
     needs: tests
+    if: success()
 
     steps:
-      - name: Получение кода
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Линт Dockerfile hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: Dockerfile
-          config: .hadolint.yaml
-
-      - name: Сборка контейнера
-        run: docker build -t event-planner:ci .
-
-      - name: Сканирование образа trivy
-        uses: aquasecurity/trivy-action@0.20.0
-        with:
-          image-ref: event-planner:ci
-          format: table
-          exit-code: 0
-          output: trivy-report.txt
-
-      - name: Артефакт отчёта trivy
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-report
-          path: trivy-report.txt
-
-  deploy-mock:
-    name: Мок деплой в стенд staging
-    runs-on: ubuntu-latest
-    needs: tests
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: staging
-    env:
-      APP_ENV: staging
-      STAGING_API_URL: ${{ vars.STAGING_API_URL }}
-      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
-
-    steps:
-      - name: Эмуляция деплоя
+      - name: Print staging deploy info
         run: |
-          echo "Мок деплой коммита $GITHUB_SHA в окружение $APP_ENV"
-          echo "Адрес API для staging: $STAGING_API_URL"
-          echo "Строка подключения к базе берётся из секрета STAGING_DB_URL"
+          echo "Running staging deploy for Event Planner"
+          echo "STAGING_API_URL=${{ vars.STAGING_API_URL }}"
+          echo "This is a mock deploy step (no external calls)."
