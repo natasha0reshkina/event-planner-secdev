@@ -12,7 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   tests:
     name: Tests and Lint
     runs-on: ubuntu-latest
@@ -68,21 +67,56 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports-${{ matrix.python-version }}
+          name: test-reports-${{ matrix.python-version }}
           path: reports/
 
-  staging-deploy:
-    name: Staging deploy (mock)
+  build-image:
+    name: Build container image artifact
     runs-on: ubuntu-latest
     needs: tests
-    if: success()
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Print staging deploy info
+      - name: Build Docker image
         run: |
-          echo "Running staging deploy for Event Planner"
-          echo "STAGING_API_URL=${{ vars.STAGING_API_URL }}"
-          echo "This is a mock deploy step (no external calls)."
+          docker build -t event-planner:${{ github.sha }} .
+
+      - name: Save image as tar
+        run: |
+          docker save event-planner:${{ github.sha }} -o event-planner-${{ github.sha }}.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-planner-image
+          path: event-planner-${{ github.sha }}.tar
+
+  staging-deploy:
+    name: Staging deploy (mock)
+    runs-on: ubuntu-latest
+    needs: build-image
+    environment: staging
+
+    env:
+      STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+
+    steps:
+      - name: Download built image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: event-planner-image
+          path: .
+
+      - name: Load image from artifact
+        run: |
+          docker load -i event-planner-${{ github.sha }}.tar
+
+      - name: Mock deploy to staging
+        run: |
+          echo "Deploying image event-planner:${GITHUB_SHA} to staging"
+          echo "Staging API URL: ${STAGING_API_URL}"
+          echo "Database URL is provided via secret STAGING_DB_URL"
+          echo "This is a mock deploy using the tested image artifact."
