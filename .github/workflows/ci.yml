@@ -1,40 +1,122 @@
-name: CI
+name: CI/CD (Event Planner)
 
 on:
-  pull_request:
   push:
-    branches: [ main, p07-container-hardening ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-scan:
+  tests:
+    name: Tests and Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.12" ]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y wget
-
-      - name: Lint Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          dockerfile: Dockerfile
-          config: .hadolint.yaml
+          python-version: ${{ matrix.python-version }}
 
-      - name: Build container
-        run: docker build -t event-planner:ci .
-
-      - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.20.0
+      - name: Cache pip
+        uses: actions/cache@v4
         with:
-          image-ref: event-planner:ci
-          format: 'table'
-          exit-code: 0
-          output: trivy-report.txt
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      - name: Upload Trivy artifact
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          pip install ruff black isort pytest pytest-cov
+
+      - name: Prepare runtime dirs
+        run: |
+          mkdir -p storage/images
+          mkdir -p reports
+
+      - name: Lint
+        run: |
+          ruff check .
+          black --check .
+          isort --check-only .
+
+      - name: Run tests with coverage
+        run: |
+          pytest -q --disable-warnings --maxfail=1 \
+            --cov=app --cov=src \
+            --cov-report=xml:reports/coverage-${{ matrix.python-version }}.xml \
+            --junitxml=reports/junit-${{ matrix.python-version }}.xml
+
+      - name: Upload test reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: trivy-report
-          path: trivy-report.txt
+          name: test-reports-${{ matrix.python-version }}
+          path: reports/
 
+  build-image:
+    name: Build container image artifact
+    runs-on: ubuntu-latest
+    needs: tests
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t event-planner:${{ github.sha }} .
+
+      - name: Save image as tar
+        run: |
+          docker save event-planner:${{ github.sha }} -o event-planner-${{ github.sha }}.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-planner-image
+          path: event-planner-${{ github.sha }}.tar
+
+  staging-deploy:
+    name: Staging deploy (mock)
+    runs-on: ubuntu-latest
+    needs: build-image
+    environment: staging
+
+    env:
+      STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+
+    steps:
+      - name: Download built image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: event-planner-image
+          path: .
+
+      - name: Load image from artifact
+        run: |
+          docker load -i event-planner-${{ github.sha }}.tar
+
+      - name: Mock deploy to staging
+        run: |
+          echo "Deploying image event-planner:${GITHUB_SHA} to staging"
+          echo "Staging API URL: ${STAGING_API_URL}"
+          echo "Database URL is provided via secret STAGING_DB_URL"
+          echo "This is a mock deploy using the tested image artifact."
