@@ -33,22 +33,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-      - name: Generate SBOM with Syft (syft-json)
+      - name: Generate SBOM with Syft (CycloneDX)
         run: |
           docker run --rm -v "$PWD":/work -w /work anchore/syft:v1.20.0 \
-            packages dir:. -o syft-json > EVIDENCE/P09/sbom.json
+            packages dir:. -o cyclonedx-json > EVIDENCE/P09/sbom.json
 
-      - name: Run SCA scan with Grype
+      - name: Run SCA scan with Trivy using SBOM
         run: |
-          docker run --rm -v "$PWD":/work -w /work anchore/grype:v0.73.0 \
-            sbom:/work/EVIDENCE/P09/sbom.json -o json > EVIDENCE/P09/sca_report.json
+          docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
+            sbom --format json --output EVIDENCE/P09/sca_report.json EVIDENCE/P09/sbom.json
 
       - name: Build SCA summary
         run: |
           echo "# SCA summary" > EVIDENCE/P09/sca_summary.md
           echo "" >> EVIDENCE/P09/sca_summary.md
           echo "Агрегированное количество уязвимостей по уровню:" >> EVIDENCE/P09/sca_summary.md
-          jq '[.matches[].vulnerability.severity] | group_by(.) | map({(.[0]): length}) | add' \
+          jq '[.Results[].Vulnerabilities[].Severity] | group_by(.) | map({(.[0]): length}) | add' \
             EVIDENCE/P09/sca_report.json >> EVIDENCE/P09/sca_summary.md || echo "{}" >> EVIDENCE/P09/sca_summary.md
           echo "" >> EVIDENCE/P09/sca_summary.md
           echo "Подробности смотри в sca_report.json" >> EVIDENCE/P09/sca_summary.md
