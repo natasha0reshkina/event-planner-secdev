@@ -36,7 +36,7 @@ jobs:
       - name: Generate SBOM with Trivy (CycloneDX)
         run: |
           docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
-            sbom --format cyclonedx-json --output EVIDENCE/P09/sbom.json .
+            sbom --format cyclonedx --output EVIDENCE/P09/sbom.json .
 
       - name: Run SCA scan with Trivy (filesystem)
         run: |
@@ -48,7 +48,7 @@ jobs:
           echo "# SCA summary" > EVIDENCE/P09/sca_summary.md
           echo "" >> EVIDENCE/P09/sca_summary.md
           echo "Агрегированное количество уязвимостей по уровню:" >> EVIDENCE/P09/sca_summary.md
-          jq '[.Results[].Vulnerabilities[]?.Severity] | group_by(.) | map({(.[0]): length}) | add' \
+          jq '[.Results[].Vulnerabilities[]? .Severity] | group_by(.) | map({(.[0]): length}) | add' \
             EVIDENCE/P09/sca_report.json >> EVIDENCE/P09/sca_summary.md || echo "{}" >> EVIDENCE/P09/sca_summary.md
           echo "" >> EVIDENCE/P09/sca_summary.md
           echo "Подробности смотри в sca_report.json" >> EVIDENCE/P09/sca_summary.md
