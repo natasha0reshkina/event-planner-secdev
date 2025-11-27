@@ -36,20 +36,38 @@ jobs:
       - name: Generate SBOM with Trivy (CycloneDX)
         run: |
           docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
-            fs --format cyclonedx --output EVIDENCE/P09/sbom.json .
+            fs \
+            --scanners vuln \
+            --format cyclonedx \
+            --output EVIDENCE/P09/sbom.json \
+            /work
 
-      - name: Run SCA scan with Trivy (vulnerabilities)
+      - name: Run SCA scan with Trivy (JSON)
         run: |
           docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
-            fs --scanners vuln --format json --output EVIDENCE/P09/sca_report.json .
+            fs \
+            --scanners vuln \
+            --format json \
+            --output EVIDENCE/P09/sca_report.json \
+            /work
 
       - name: Build SCA summary
         run: |
           echo "# SCA summary" > EVIDENCE/P09/sca_summary.md
           echo "" >> EVIDENCE/P09/sca_summary.md
           echo "Агрегированное количество уязвимостей по уровню:" >> EVIDENCE/P09/sca_summary.md
-          jq '[.Results[].Vulnerabilities[]? .Severity] | group_by(.) | map({(.[0]): length}) | add' \
-            EVIDENCE/P09/sca_report.json >> EVIDENCE/P09/sca_summary.md || echo "{}" >> EVIDENCE/P09/sca_summary.md
+
+          jq '
+            if .Results then
+              [.Results[].Vulnerabilities[]? .Severity]
+              | group_by(.)
+              | map({ (.[0]): length })
+              | add
+            else
+              {}
+            end
+          ' EVIDENCE/P09/sca_report.json >> EVIDENCE/P09/sca_summary.md || echo "{}" >> EVIDENCE/P09/sca_summary.md
+
           echo "" >> EVIDENCE/P09/sca_summary.md
           echo "Подробности смотри в sca_report.json" >> EVIDENCE/P09/sca_summary.md
 
