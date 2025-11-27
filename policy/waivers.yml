@@ -1,1 +1,15 @@
 
+waivers:
+  - id: "CVE-2019-11324"
+    package: "urllib3"
+    version: "1.24.1"
+    severity: "HIGH"
+    reason: >
+      Уязвимость в urllib3 (CVE-2019-11324) зафиксирована сканером Trivy в рамках P09.
+      На текущем этапе библиотека тянется транзитивно через зависимости и не используется
+      напрямую в прод-коде Event Planner для внешних HTTP-запросов. Исправление требует
+      обновления нескольких зависимостей и будет выполнено в отдельной задаче, чтобы
+      не ломать оставшиеся практики.
+    issue: "https://github.com/natasha0reshkina/event-planner-secdev/issues/9"
+    expires_at: "2026-03-31"
+    approved_by: "tutor@example.org"
