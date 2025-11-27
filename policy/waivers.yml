@@ -1,15 +1,28 @@
-
 waivers:
+  - id: "CVE-2020-14343"
+    package: "PyYAML"
+    version: "5.3.1"
+    severity: "CRITICAL"
+    reason: >
+      Критическая уязвимость в PyYAML (CVE-2020-14343) обнаружена Trivy в рамках P09.
+      Библиотека используется транзитивно через зависимости и сейчас не применяется
+      для парсинга непроверенного YAML во внешнем API Event Planner.
+      Обновление до версии 5.4+ затрагивает цепочку зависимостей и будет вынесено
+      в отдельный технический долг, чтобы не ломать стабильность курса и практик.
+    issue: "https://github.com/natasha0reshkina/event-planner-secdev/issues/10"
+    expires_at: "2026-03-31"
+    approved_by: "tutor@example.org"
+
   - id: "CVE-2019-11324"
     package: "urllib3"
     version: "1.24.1"
     severity: "HIGH"
     reason: >
-      Уязвимость в urllib3 (CVE-2019-11324) зафиксирована сканером Trivy в рамках P09.
-      На текущем этапе библиотека тянется транзитивно через зависимости и не используется
-      напрямую в прод-коде Event Planner для внешних HTTP-запросов. Исправление требует
-      обновления нескольких зависимостей и будет выполнено в отдельной задаче, чтобы
-      не ломать оставшиеся практики.
-    issue: "https://github.com/natasha0reshkina/event-planner-secdev/issues/9"
+      Высокая уязвимость в urllib3 (CVE-2019-11324) найдена Trivy по requirements.txt.
+      В текущей версии Event Planner библиотека используется косвенно, и сервис
+      не выполняет исходящие HTTP-запросы к внешним недоверенным сервисам.
+      Прямой эксплуатационный риск для MVP низкий, но обновление urllib3 до
+      безопасной версии (>=1.24.2) запланировано как отдельная задача.
+    issue: "https://github.com/natasha0reshkina/event-planner-secdev/issues/11"
     expires_at: "2026-03-31"
     approved_by: "tutor@example.org"
