@@ -36,12 +36,12 @@ jobs:
       - name: Generate SBOM with Trivy (CycloneDX)
         run: |
           docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
-            sbom --format cyclonedx --output EVIDENCE/P09/sbom.json .
+            fs --format cyclonedx --output EVIDENCE/P09/sbom.json .
 
-      - name: Run SCA scan with Trivy (filesystem)
+      - name: Run SCA scan with Trivy (vulnerabilities)
         run: |
           docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
-            fs --format json --output EVIDENCE/P09/sca_report.json .
+            fs --scanners vuln --format json --output EVIDENCE/P09/sca_report.json .
 
       - name: Build SCA summary
         run: |
