@@ -35,7 +35,7 @@ jobs:
 
       - name: Generate SBOM with Trivy (CycloneDX)
         run: |
-          docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
+          docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.57.1 \
             fs \
             --scanners vuln \
             --format cyclonedx \
@@ -44,7 +44,7 @@ jobs:
 
       - name: Run SCA scan with Trivy (JSON)
         run: |
-          docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.54.1 \
+          docker run --rm -v "$PWD":/work -w /work aquasec/trivy:0.57.1 \
             fs \
             --scanners vuln \
             --format json \
