@@ -10,3 +10,9 @@ commits = []
 regexes = [
   '''TEST_SECRET_DO_NOT_USE''',
 ]
+
+[[rules]]
+id = "eventplanner-demo-api-key"
+description = "Demo API key for Event Planner P10 practice"
+regex = '''API_KEY_[A-Z0-9]+'''
+tags = ["eventplanner", "demo", "api-key"]
