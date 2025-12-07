@@ -1,0 +1,12 @@
+title = "course project gitleaks config"
+
+[extend]
+
+[allowlist]
+paths = [
+  "EVIDENCE/",
+]
+commits = []
+regexes = [
+  '''TEST_SECRET_DO_NOT_USE''',
+]
