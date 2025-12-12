@@ -1,0 +1,21 @@
+title = "Gitleaks baseline for Event Planner (P10)"
+
+[extend]
+
+[allowlist]
+description = "ignore non-sensitive artifacts and known test patterns"
+paths = [
+  "EVIDENCE/",
+]
+commits = []
+regexes = [
+  '''TEST_SECRET_DO_NOT_USE''',
+  '''(?i)healthcheck''',
+]
+
+[[rules]]
+id = "dummy-baseline-secret"
+description = "Example disabled rule that never matches"
+regex = '''(?i)dummy-never-match'''
+entropy = 5.0
+keywords = ["dummy-never-match"]
