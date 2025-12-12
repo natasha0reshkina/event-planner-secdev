@@ -1,18 +1,21 @@
-title = "course project gitleaks config"
+title = "Gitleaks baseline for Event Planner (extend in P10)"
 
 [extend]
 
 [allowlist]
+description = "ignore non-sensitive artifacts and known test patterns"
 paths = [
   "EVIDENCE/",
 ]
 commits = []
 regexes = [
   '''TEST_SECRET_DO_NOT_USE''',
+  '''(?i)healthcheck''',
 ]
 
 [[rules]]
-id = "eventplanner-demo-api-key"
-description = "Demo API key for Event Planner P10 practice"
-regex = '''API_KEY_[A-Z0-9]+'''
-tags = ["eventplanner", "demo", "api-key"]
+id = "dummy-baseline-secret"
+description = "Example disabled rule that never matches"
+regex = '''(?i)dummy-never-match'''
+entropy = 5.0
+keywords = ["dummy-never-match"]
