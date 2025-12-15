@@ -38,16 +38,20 @@ jobs:
           set -euo pipefail
           docker compose -f docker-compose.yml up -d --build
 
-          echo "Waiting for app port 8000 to be open..."
+          echo "Containers:"
+          docker compose -f docker-compose.yml ps
 
-          timeout 180 bash -c '
-            while ! (echo > /dev/tcp/localhost/8000) 2>/dev/null; do
-              echo "Still waiting for port 8000..."
+          HOST_PORT=8000
+          echo "Waiting for app on port ${HOST_PORT}..."
+
+          timeout 180 bash -c "
+            while ! (echo > /dev/tcp/localhost/${HOST_PORT}) 2>/dev/null; do
+              echo \"Still waiting for port ${HOST_PORT}...\"
               sleep 2
             done
-          '
+          "
 
-          echo "Port 8000 is open, continue to ZAP"
+          echo "Port ${HOST_PORT} is open"
 
       - name: ZAP Baseline
         run: |
@@ -55,7 +59,8 @@ jobs:
           IMAGE="ghcr.io/zaproxy/zaproxy:stable"
           docker pull "$IMAGE"
 
-          TARGET="http://localhost:8000/"
+          HOST_PORT=8000  # ← и тут тот же порт, что выше
+          TARGET="http://localhost:${HOST_PORT}/"
 
           set +e
           docker run --rm --network host \
