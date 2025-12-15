@@ -2,7 +2,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from src.security.errors import problem
 from src.security.files import secure_save
@@ -12,10 +12,26 @@ app = FastAPI(title="SecDev Course App", version="0.1.0")
 
 
 class ApiError(Exception):
-    def __init__(self, code: str, message: str, status: int = 400):
+    def __init__(self, code: str, message: str, status: int = 400) -> None:
         self.code = code
         self.message = message
         self.status = status
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Embedder-Policy", "require-corp")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+
+    if request.url.path in {"/", "/health", "/robots.txt", "/sitemap.xml"}:
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Pragma", "no-cache")
+
+    return response
 
 
 @app.exception_handler(ApiError)
@@ -33,6 +49,27 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"error": {"code": "http_error", "message": detail}},
     )
+
+
+@app.get("/")
+def root():
+    return {"service": "event-planner", "status": "ok"}
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots():
+    return PlainTextResponse("User-agent: *\nDisallow:\n", status_code=200)
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>/</loc></url>
+  <url><loc>/health</loc></url>
+</urlset>
+"""
+    return Response(content=xml, media_type="application/xml", status_code=200)
 
 
 @app.get("/health")
@@ -84,6 +121,9 @@ def create_event(payload: dict):
 
 @app.post("/events/{event_id}/image")
 async def upload_event_image(event_id: str, file: UploadFile):
+    if event_id not in _EVENTS_DB:
+        return problem(404, "Не найдено", "event_not_found")
+
     data = await file.read()
     try:
         stored_path = secure_save(Path("storage/images"), data)
