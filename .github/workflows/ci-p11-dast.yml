@@ -47,13 +47,12 @@ jobs:
       - name: Start app (docker compose)
         run: |
           set -euo pipefail
-          docker compose up -d --build
+          docker compose -f docker-compose.yml up -d --build
           timeout 180 bash -c 'until curl -sf http://localhost:8000/health > /dev/null; do sleep 2; done'
 
       - name: ZAP Baseline
         run: |
           set -euo pipefail
-
           IMAGE="ghcr.io/zaproxy/zaproxy:stable"
           docker pull "$IMAGE"
 
@@ -93,9 +92,9 @@ jobs:
       - name: Debug logs
         if: failure()
         run: |
-          docker compose ps || true
-          docker compose logs --no-color --tail=200 || true
+          docker compose -f docker-compose.yml ps || true
+          docker compose -f docker-compose.yml logs --no-color --tail=200 || true
 
       - name: Teardown
         if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.yml down -v
