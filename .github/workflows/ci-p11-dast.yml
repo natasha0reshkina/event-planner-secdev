@@ -2,10 +2,22 @@ name: Security - DAST (P11, ZAP baseline)
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/ci-p11-dast.yml"
   push:
     paths:
       - "app/**"
-      - "src/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.example"
       - ".github/workflows/ci-p11-dast.yml"
 
 permissions:
@@ -24,33 +36,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure evidence dirs
-        run: mkdir -p EVIDENCE/P11
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
+      - name: Prepare env and evidence dir
         run: |
-          pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          cp -n .env.example .env || true
+          mkdir -p EVIDENCE/P11
+          chmod -R a+rwx EVIDENCE/P11
 
-      - name: Run app
+      - name: Start app (docker compose)
         run: |
-          uvicorn app.main:app --host 0.0.0.0 --port 8080 &
-          timeout 30 bash -c 'until curl -sf http://localhost:8080/health; do sleep 1; done'
+          set -euo pipefail
+          docker compose -f docker-compose.yml up -d --build
+          timeout 180 bash -c 'until curl -sf http://localhost:8000/health; do sleep 2; done'
 
       - name: ZAP Baseline
         run: |
-          docker run --rm --network host -v $PWD:/zap/wrk owasp/zap2docker-stable \
-            zap-baseline.py \
-              -t http://localhost:8080 \
-              -r zap_baseline.html \
-              -J zap_baseline.json \
-              -d || true
-          mv zap_baseline.* EVIDENCE/P11/ || true
+          set -euo pipefail
+          IMAGE="ghcr.io/zaproxy/zaproxy:stable"
+          docker pull "$IMAGE"
+
+          TARGET="http://localhost:8000/"
+
+          set +e
+          docker run --rm --network host \
+            -v "$PWD/EVIDENCE/P11":/zap/wrk:rw \
+            -w /zap/wrk \
+            "$IMAGE" \
+              zap-baseline.py \
+                -t "$TARGET" \
+                -m 2 \
+                -r zap_baseline.html \
+                -J zap_baseline.json \
+                -d
+          EC=$?
+          set -e
+
+          echo "ZAP exit code: $EC"
+          ls -la EVIDENCE/P11
+
+          test -s EVIDENCE/P11/zap_baseline.html
+          test -s EVIDENCE/P11/zap_baseline.json
+
+          if [ "$EC" -gt 2 ]; then
+            exit "$EC"
+          fi
 
       - name: Upload P11 evidence
         if: always()
@@ -58,3 +86,7 @@ jobs:
         with:
           name: P11_EVIDENCE
           path: EVIDENCE/P11
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
