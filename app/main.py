@@ -121,9 +121,6 @@ def create_event(payload: dict):
 
 @app.post("/events/{event_id}/image")
 async def upload_event_image(event_id: str, file: UploadFile):
-    if event_id not in _EVENTS_DB:
-        return problem(404, "Не найдено", "event_not_found")
-
     data = await file.read()
     try:
         stored_path = secure_save(Path("storage/images"), data)
