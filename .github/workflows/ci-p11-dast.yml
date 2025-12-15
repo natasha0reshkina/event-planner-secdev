@@ -2,6 +2,15 @@ name: Security - DAST (P11, ZAP baseline)
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/ci-p11-dast.yml"
   push:
     paths:
       - "app/**"
@@ -38,20 +47,11 @@ jobs:
           set -euo pipefail
           docker compose -f docker-compose.yml up -d --build
 
-          echo "Containers:"
-          docker compose -f docker-compose.yml ps
-
-          HOST_PORT=8000
-          echo "Waiting for app on port ${HOST_PORT}..."
-
-          timeout 180 bash -c "
-            while ! (echo > /dev/tcp/localhost/${HOST_PORT}) 2>/dev/null; do
-              echo \"Still waiting for port ${HOST_PORT}...\"
+          timeout 180 bash -c '
+            until curl -sf http://localhost:8000/health || curl -sf http://localhost:8000/; do
               sleep 2
             done
-          "
-
-          echo "Port ${HOST_PORT} is open"
+          '
 
       - name: ZAP Baseline
         run: |
@@ -59,8 +59,7 @@ jobs:
           IMAGE="ghcr.io/zaproxy/zaproxy:stable"
           docker pull "$IMAGE"
 
-          HOST_PORT=8000  # ← и тут тот же порт, что выше
-          TARGET="http://localhost:${HOST_PORT}/"
+          TARGET="http://localhost:8000/"
 
           set +e
           docker run --rm --network host \
@@ -77,8 +76,7 @@ jobs:
           set -e
 
           echo "ZAP exit code: $EC"
-          echo "EVIDENCE/P11 contents after ZAP:"
-          ls -la EVIDENCE/P11 || true
+          ls -la EVIDENCE/P11
 
           test -s EVIDENCE/P11/zap_baseline.html
           test -s EVIDENCE/P11/zap_baseline.json
