@@ -1,0 +1,8 @@
+rules:
+  - id: py-unsafe-html-echo
+    languages: [python]
+    message: "Потенциально небезопасная вставка пользовательского ввода в HTMLResponse"
+    severity: WARNING
+    patterns:
+      - pattern: |
+          HTMLResponse(f"...{$X}...")

@@ -1,0 +1,27 @@
+[
+ {
+  "RuleID": "eventplanner-demo-api-key",
+  "Description": "Demo API key for Event Planner P10 practice",
+  "StartLine": 1,
+  "EndLine": 1,
+  "StartColumn": 30,
+  "EndColumn": 49,
+  "Match": "API_KEY_ABC123456789",
+  "Secret": "API_KEY_ABC123456789",
+  "File": "security/test.py",
+  "SymlinkFile": "",
+  "Commit": "5fa0de4c9b664bdd3c8e0cb3743dd8cde2ea5047",
+  "Link": "https://github.com/natasha0reshkina/event-planner-secdev/blob/5fa0de4c9b664bdd3c8e0cb3743dd8cde2ea5047/security/test.py#L1",
+  "Entropy": 4.121928,
+  "Author": "Nataliia Oreshkina",
+  "Email": "80550780+natasha0reshkina@users.noreply.github.com",
+  "Date": "2025-12-07T01:51:41Z",
+  "Message": "Update API key in test.py",
+  "Tags": [
+   "eventplanner",
+   "demo",
+   "api-key"
+  ],
+  "Fingerprint": "5fa0de4c9b664bdd3c8e0cb3743dd8cde2ea5047:security/test.py:eventplanner-demo-api-key:1"
+ }
+]
