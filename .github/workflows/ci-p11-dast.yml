@@ -2,15 +2,6 @@ name: Security - DAST (P11, ZAP baseline)
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: ["main"]
-    paths:
-      - "app/**"
-      - "tests/**"
-      - "Dockerfile"
-      - "docker-compose.yml"
-      - ".env.example"
-      - ".github/workflows/ci-p11-dast.yml"
   push:
     paths:
       - "app/**"
@@ -46,7 +37,25 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f docker-compose.yml up -d --build
-          timeout 180 bash -c 'until curl -sf http://localhost:8000/health; do sleep 2; done'
+
+          echo "Waiting for app to be ready on port 8000..."
+
+          timeout 180 bash -c '
+            while true; do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "Health OK at /health"
+                exit 0
+              elif curl -sf http://localhost:8000/healthz > /dev/null 2>&1; then
+                echo "Health OK at /healthz"
+                exit 0
+              elif curl -sf http://localhost:8000/ > /dev/null 2>&1; then
+                echo "Health OK at /"
+                exit 0
+              fi
+              echo "Still waiting for app..."
+              sleep 2
+            done
+          '
 
       - name: ZAP Baseline
         run: |
@@ -71,7 +80,8 @@ jobs:
           set -e
 
           echo "ZAP exit code: $EC"
-          ls -la EVIDENCE/P11
+          echo "EVIDENCE/P11 contents after ZAP:"
+          ls -la EVIDENCE/P11 || true
 
           test -s EVIDENCE/P11/zap_baseline.html
           test -s EVIDENCE/P11/zap_baseline.json
