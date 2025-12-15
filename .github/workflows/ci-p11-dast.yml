@@ -38,24 +38,16 @@ jobs:
           set -euo pipefail
           docker compose -f docker-compose.yml up -d --build
 
-          echo "Waiting for app to be ready on port 8000..."
+          echo "Waiting for app port 8000 to be open..."
 
           timeout 180 bash -c '
-            while true; do
-              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-                echo "Health OK at /health"
-                exit 0
-              elif curl -sf http://localhost:8000/healthz > /dev/null 2>&1; then
-                echo "Health OK at /healthz"
-                exit 0
-              elif curl -sf http://localhost:8000/ > /dev/null 2>&1; then
-                echo "Health OK at /"
-                exit 0
-              fi
-              echo "Still waiting for app..."
+            while ! (echo > /dev/tcp/localhost/8000) 2>/dev/null; do
+              echo "Still waiting for port 8000..."
               sleep 2
             done
           '
+
+          echo "Port 8000 is open, continue to ZAP"
 
       - name: ZAP Baseline
         run: |
