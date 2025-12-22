@@ -1,25 +1,30 @@
-name: Security IaC and Container P12
+name: Security - IaC & Container (P12)
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "infra/**"
+      - "security/**"
+      - ".github/workflows/ci-p12-iac-container.yml"
   push:
     paths:
-      - Dockerfile
-      - infra/**
-      - iac/**
-      - deploy/**
-      - security/**
-      - .github/workflows/ci-p12-iac-container.yml
+      - "Dockerfile"
+      - "infra/**"
+      - "security/**"
+      - ".github/workflows/ci-p12-iac-container.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: p12-iac-container-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  p12_iac_container:
+  p12:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -27,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare evidence
+      - name: Prepare evidence dir
         run: |
           mkdir -p EVIDENCE/P12
           chmod -R a+rwx EVIDENCE/P12
@@ -36,35 +41,72 @@ jobs:
         run: |
           docker build -t event-planner:p12 .
 
-      - name: Hadolint scan
+      - name: Hadolint Dockerfile
         run: |
-          docker run --rm -v "$PWD":/work -w /work hadolint/hadolint:latest \
-            hadolint -f json -c /work/security/hadolint.yaml /work/Dockerfile > EVIDENCE/P12/hadolint_report.json || true
-          test -s EVIDENCE/P12/hadolint_report.json || echo "[]" > EVIDENCE/P12/hadolint_report.json
+          set +e
+          docker run --rm -v "$PWD:/work" -w /work hadolint/hadolint:v2.14.0 \
+            hadolint -c /work/security/hadolint.yaml -f json /work/Dockerfile > EVIDENCE/P12/hadolint_report.json
+          set -e
+          if [ ! -s EVIDENCE/P12/hadolint_report.json ]; then echo "[]" > EVIDENCE/P12/hadolint_report.json; fi
 
-      - name: Checkov scan
+      - name: Checkov IaC scan
         run: |
-          TARGET_DIR="iac"
-          if [ -d "infra" ]; then TARGET_DIR="infra"; fi
-          if [ -d "deploy" ]; then TARGET_DIR="deploy"; fi
-          docker run --rm -v "$PWD":/work -w /work bridgecrew/checkov:latest \
-            -d "/work/${TARGET_DIR}" \
+          set +e
+          docker run --rm -v "$PWD:/work" -w /work bridgecrew/checkov:3.2.466 \
+            -d /work/infra \
             --config-file /work/security/checkov.yaml \
-            -o json --compact > EVIDENCE/P12/checkov_report.json || true
-          test -s EVIDENCE/P12/checkov_report.json || echo "{}" > EVIDENCE/P12/checkov_report.json
+            -o json --compact > EVIDENCE/P12/checkov_report.json
+          set -e
+          if [ ! -s EVIDENCE/P12/checkov_report.json ]; then echo "{}" > EVIDENCE/P12/checkov_report.json; fi
 
-      - name: Trivy scan
+      - name: Trivy image scan
         run: |
+          set +e
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD":/work -w /work aquasec/trivy:latest \
-            image event-planner:p12 \
+            -v "$PWD:/work" -w /work aquasec/trivy:0.67.2 \
+              image event-planner:p12 \
               --config /work/security/trivy.yaml \
               --format json \
-              --output /work/EVIDENCE/P12/trivy_report.json || true
-          test -s EVIDENCE/P12/trivy_report.json || echo "{}" > EVIDENCE/P12/trivy_report.json
+              --output /work/EVIDENCE/P12/trivy_report.json
+          set -e
+          if [ ! -s EVIDENCE/P12/trivy_report.json ]; then echo "{}" > EVIDENCE/P12/trivy_report.json; fi
 
-      - name: Upload evidence
+      - name: Build hardening summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("EVIDENCE/P12")
+          p.mkdir(parents=True, exist_ok=True)
+
+          def load_json(path: Path):
+            try:
+              if path.exists():
+                txt = path.read_text(encoding="utf-8").strip()
+                return json.loads(txt) if txt else {}
+            except Exception:
+              return {}
+            return {}
+
+          trivy = load_json(p / "trivy_report.json")
+          crit = high = 0
+          for r in trivy.get("Results", []) or []:
+            for v in r.get("Vulnerabilities", []) or []:
+              sev = str(v.get("Severity", "")).upper()
+              if sev == "CRITICAL":
+                crit += 1
+              elif sev == "HIGH":
+                high += 1
+
+          (p / "hardening_summary.md").write_text(
+            f"Trivy. Critical {crit}. High {high}.\n",
+            encoding="utf-8"
+          )
+          PY
+
+      - name: Upload P12 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
