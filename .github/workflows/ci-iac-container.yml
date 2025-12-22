@@ -2,6 +2,15 @@ name: Security - IaC & Container (P12)
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "infra/**"
+      - "iac/**"
+      - "deploy/**"
+      - "security/**"
+      - ".github/workflows/ci-p12-iac-container.yml"
   push:
     paths:
       - "Dockerfile"
@@ -19,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  iac_container_p12:
+  p12_iac_container:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -36,58 +45,91 @@ jobs:
         run: |
           docker build -t event-planner:p12 .
 
-      - name: Hadolint Dockerfile
+      - name: Hadolint
         run: |
-          docker run --rm -v "$PWD":/work -w /work hadolint/hadolint \
-            hadolint --config /work/security/hadolint.yaml -f json /work/Dockerfile > EVIDENCE/P12/hadolint_report.json || true
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            hadolint/hadolint:latest \
+              hadolint -c /work/security/hadolint.yaml -f json /work/Dockerfile \
+              > /work/EVIDENCE/P12/hadolint_report.json || true
           test -s EVIDENCE/P12/hadolint_report.json || echo "[]" > EVIDENCE/P12/hadolint_report.json
 
-      - name: Checkov IaC scan
+      - name: Checkov
         run: |
-          TARGET_DIR="iac"
+          set -euo pipefail
+          TARGET_DIR=""
           if [ -d "infra" ]; then TARGET_DIR="infra"; fi
-          if [ -d "deploy" ]; then TARGET_DIR="deploy"; fi
+          if [ -z "$TARGET_DIR" ] && [ -d "iac" ]; then TARGET_DIR="iac"; fi
+          if [ -z "$TARGET_DIR" ] && [ -d "deploy" ]; then TARGET_DIR="deploy"; fi
 
-          docker run --rm -v "$PWD":/work -w /work bridgecrew/checkov \
-            --config-file /work/security/checkov.yaml \
-            -d "/work/${TARGET_DIR}" \
-            -o json \
-            --compact > EVIDENCE/P12/checkov_report.json || true
+          if [ -z "$TARGET_DIR" ]; then
+            echo "{}" > EVIDENCE/P12/checkov_report.json
+            exit 0
+          fi
+
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            bridgecrew/checkov:latest \
+              --config-file /work/security/checkov.yaml \
+              -d "/work/${TARGET_DIR}" \
+              -o json \
+              --compact \
+              > /work/EVIDENCE/P12/checkov_report.json || true
+
           test -s EVIDENCE/P12/checkov_report.json || echo "{}" > EVIDENCE/P12/checkov_report.json
 
-      - name: Trivy image scan json
+      - name: Trivy
         run: |
+          set -euo pipefail
+
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD":/work -w /work aquasec/trivy:latest \
-            image event-planner:p12 \
+            -v "$PWD":/work \
+            -w /work \
+            aquasec/trivy:latest \
+              image event-planner:p12 \
               --config /work/security/trivy.yaml \
               --format json \
               --output /work/EVIDENCE/P12/trivy_report.json || true
-          test -s EVIDENCE/P12/trivy_report.json || echo "{}" > EVIDENCE/P12/trivy_report.json
 
-      - name: Trivy summary md
-        run: |
-          set +e
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD":/work -w /work aquasec/trivy:latest \
-            image event-planner:p12 \
+            -v "$PWD":/work \
+            -w /work \
+            aquasec/trivy:latest \
+              image event-planner:p12 \
               --config /work/security/trivy.yaml \
-              --format table > /tmp/trivy_table.txt
-          set -e
+              --format table \
+              --output /work/EVIDENCE/P12/trivy_report.md || true
 
-          {
-            echo "# Trivy summary"
-            echo
-            echo "Image: event-planner:p12"
-            echo
-            echo '```'
-            cat /tmp/trivy_table.txt
-            echo '```'
-          } > EVIDENCE/P12/trivy_summary.md
+          test -s EVIDENCE/P12/trivy_report.json || echo "{}" > EVIDENCE/P12/trivy_report.json
+          test -s EVIDENCE/P12/trivy_report.md || echo "Trivy report is empty" > EVIDENCE/P12/trivy_report.md
 
-          test -s EVIDENCE/P12/trivy_summary.md || echo "# Trivy summary" > EVIDENCE/P12/trivy_summary.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("EVIDENCE/P12/trivy_report.json")
+          out = Path("EVIDENCE/P12/trivy_summary.md")
+          try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+          except Exception:
+            out.write_text("Trivy summary\n\nCritical: 0\nHigh: 0\n", encoding="utf-8")
+            raise SystemExit(0)
+
+          crit = high = 0
+          for r in (data.get("Results") or []):
+            for v in (r.get("Vulnerabilities") or []):
+              s = v.get("Severity")
+              if s == "CRITICAL":
+                crit += 1
+              elif s == "HIGH":
+                high += 1
+
+          out.write_text(f"Trivy image scan summary\n\nCritical: {crit}\nHigh: {high}\n", encoding="utf-8")
+          PY
 
       - name: Upload P12 evidence
         if: always()
