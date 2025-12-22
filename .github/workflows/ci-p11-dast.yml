@@ -1,0 +1,100 @@
+name: Security - DAST (P11, ZAP baseline)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "app/**"
+      - "src/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/ci-p11-dast.yml"
+  push:
+    paths:
+      - "app/**"
+      - "src/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/ci-p11-dast.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dast_p11:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare env and evidence dir
+        run: |
+          cp -n .env.example .env || true
+          mkdir -p EVIDENCE/P11
+          chmod -R a+rwx EVIDENCE/P11
+
+      - name: Start app (docker compose)
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml up -d --build
+          timeout 180 bash -c 'until curl -sf http://localhost:8000/health > /dev/null; do sleep 2; done'
+
+      - name: ZAP Baseline
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/zaproxy/zaproxy:stable"
+          docker pull "$IMAGE"
+
+          TARGET="http://localhost:8000/"
+
+          set +e
+          docker run --rm --network host \
+            -v "$PWD/EVIDENCE/P11":/zap/wrk:rw \
+            -w /zap/wrk \
+            "$IMAGE" \
+              zap-baseline.py \
+                -t "$TARGET" \
+                -m 2 \
+                -r zap_baseline.html \
+                -J zap_baseline.json \
+                -d
+          EC=$?
+          set -e
+
+          echo "ZAP exit code: $EC"
+          ls -la EVIDENCE/P11
+
+          test -s EVIDENCE/P11/zap_baseline.html
+          test -s EVIDENCE/P11/zap_baseline.json
+
+          if [ "$EC" -gt 2 ]; then
+            exit "$EC"
+          fi
+
+      - name: Upload P11 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: P11_EVIDENCE
+          path: EVIDENCE/P11
+
+      - name: Debug logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml ps || true
+          docker compose -f docker-compose.yml logs --no-color --tail=200 || true
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml down -v

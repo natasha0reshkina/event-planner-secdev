@@ -23,23 +23,17 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# создаём отдельного пользователя
 RUN groupadd -r app && useradd -r -g app app
 
-# копируем только установленные зависимости
 COPY --from=build /install /usr/local
-
-# копируем исходники приложения
 COPY . .
 
-# даём права пользователю app
 RUN chown -R app:app /app
-
 USER app
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"
 
 EXPOSE 8000
 
-CMD ["python", "-m", "app.main"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
