@@ -1,4 +1,4 @@
-# P12 Hardening summary (before/after)
+# P12 Hardening summary
 
 ## Dockerfile
 **Before:**
@@ -6,11 +6,11 @@
 - no explicit least-privilege notes
 
 **After:**
-- install dependencies only from pinned `requirements.txt` (no unpinned `pip install --upgrade`)
-- runtime runs as non-root (`USER app`) with owned workdir
-- multi-stage build keeps runtime image smaller (no build cache in final)
+- install dependencies only from pinned `requirements.txt` 
+- runtime runs as non-rootwith owned workdir
+- multi-stage build keeps runtime image smaller
 
-## Kubernetes (k8s/...)
+## Kubernetes
 **Before:**
 - resources implicitly used `default` namespace
 - no NetworkPolicy for the pod
@@ -21,4 +21,4 @@
 - pod `seccompProfile: RuntimeDefault`
 - container security: `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, drop all caps
 - NetworkPolicy restricts ingress to app port within namespace
-- app config is passed via env (`PORT`)
+- app config is passed via env `PORT`
