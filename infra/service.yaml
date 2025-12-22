@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-planner
+  namespace: event-planner
+  labels:
+    app: event-planner
+spec:
+  selector:
+    app: event-planner
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
